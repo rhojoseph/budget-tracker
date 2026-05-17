@@ -30,6 +30,10 @@ export function getCategoryInfo(type, catId) {
   return list.find(c => c.id === catId) || list[list.length - 1];
 }
 
+export function formatMoneyFull(amount) {
+  return new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(amount);
+}
+
 export function useAuth() {
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem('budget_user');
