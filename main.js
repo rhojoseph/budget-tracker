@@ -1,6 +1,6 @@
 import {
   EXPENSE_CATEGORIES, INCOME_CATEGORIES,
-  loadTransactions, addTransaction, updateTransaction, deleteTransaction,
+  loadTransactions, subscribeTransactions, addTransaction, updateTransaction, deleteTransaction,
   getMonthTransactions, clearAll, formatMoney, formatMoneyFull, getCategoryInfo
 } from './data.js';
 
@@ -10,12 +10,18 @@ let currentView = 'dashboard';
 let activeFilter = 'all';
 let editingTxId = null;
 
+let isDataLoaded = false;
+
 function init() {
   const now = new Date();
   currentYear = now.getFullYear();
   currentMonth = now.getMonth();
   bindEvents();
-  render();
+  
+  subscribeTransactions(() => {
+    isDataLoaded = true;
+    render();
+  });
 }
 
 /* ===== Event Binding ===== */
@@ -69,11 +75,7 @@ function bindEvents() {
 
   // Reset
   document.getElementById('reset-btn').addEventListener('click', () => {
-    if (confirm('모든 데이터를 삭제하시겠습니까?')) {
-      clearAll();
-      toast('데이터가 초기화되었습니다.', 'info');
-      render();
-    }
+    toast('안전상의 이유로 전체 삭제는 비활성화되었습니다.', 'info');
   });
 
   // Export
@@ -444,7 +446,7 @@ function renderModalCategories(type) {
   });
 }
 
-function submitTransaction() {
+async function submitTransaction() {
   const amount = parseInt(document.getElementById('tx-amount').value.replace(/[^\d]/g, ''), 10);
   if (!amount || amount <= 0) { toast('금액을 입력해주세요.', 'error'); return; }
   const date = document.getElementById('tx-date').value;
@@ -454,23 +456,41 @@ function submitTransaction() {
 
   const txData = { type: currentTxType, amount, date, category, memo };
 
-  if (editingTxId) {
-    updateTransaction(editingTxId, txData);
-    toast('내역이 수정되었습니다.', 'success');
-  } else {
-    addTransaction(txData);
-    toast('내역이 추가되었습니다.', 'success');
+  try {
+    const submitBtn = document.getElementById('tx-submit');
+    submitBtn.disabled = true;
+    
+    if (editingTxId) {
+      await updateTransaction(editingTxId, txData);
+      toast('내역이 수정되었습니다.', 'success');
+    } else {
+      await addTransaction(txData);
+      toast('내역이 추가되었습니다.', 'success');
+    }
+    closeModal();
+  } catch (error) {
+    console.error(error);
+    toast('처리 중 오류가 발생했습니다.', 'error');
+  } finally {
+    document.getElementById('tx-submit').disabled = false;
   }
-  closeModal();
-  render();
 }
 
-function handleDelete() {
+async function handleDelete() {
   if (editingTxId && confirm('이 내역을 삭제하시겠습니까?')) {
-    deleteTransaction(editingTxId);
-    toast('내역이 삭제되었습니다.', 'info');
-    closeModal();
-    render();
+    try {
+      const deleteBtn = document.getElementById('tx-delete');
+      deleteBtn.disabled = true;
+      await deleteTransaction(editingTxId);
+      toast('내역이 삭제되었습니다.', 'info');
+      closeModal();
+    } catch (e) {
+      console.error(e);
+      toast('삭제 중 오류가 발생했습니다.', 'error');
+    } finally {
+      const deleteBtn = document.getElementById('tx-delete');
+      if (deleteBtn) deleteBtn.disabled = false;
+    }
   }
 }
 

@@ -1,3 +1,5 @@
+import { db, collection, doc, setDoc, deleteDoc, onSnapshot } from './src/firebase.js';
+
 /* ===== Categories ===== */
 export const EXPENSE_CATEGORIES = [
   { id: 'food', name: '식비', emoji: '🍚', color: '#fd79a8' },
@@ -20,51 +22,60 @@ export const INCOME_CATEGORIES = [
   { id: 'etc_income', name: '기타', emoji: '📦', color: '#636e72' },
 ];
 
-const STORAGE_KEY = 'budget_transactions';
+/* ===== Data Store (Firebase) ===== */
+const COLLECTION_NAME = 'budget_transactions';
 
-/* ===== Data Store ===== */
+// 메모리에 로드된 트랜잭션 (동기적 접근을 위해)
+let cachedTransactions = [];
+let unsubscribeSnapshot = null;
+
+// 실시간 구독
+export function subscribeTransactions(onUpdate) {
+  if (unsubscribeSnapshot) unsubscribeSnapshot();
+  
+  unsubscribeSnapshot = onSnapshot(collection(db, COLLECTION_NAME), (snapshot) => {
+    cachedTransactions = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    if (onUpdate) onUpdate(cachedTransactions);
+  });
+  
+  return unsubscribeSnapshot;
+}
+
 export function loadTransactions() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
+  return cachedTransactions;
 }
 
-export function saveTransactions(list) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-}
-
-export function addTransaction(tx) {
-  const list = loadTransactions();
-  tx.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-  list.push(tx);
-  saveTransactions(list);
+export async function addTransaction(tx) {
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  tx.id = id;
+  const docRef = doc(db, COLLECTION_NAME, id);
+  await setDoc(docRef, tx);
   return tx;
 }
 
-export function updateTransaction(id, updates) {
-  const list = loadTransactions();
-  const idx = list.findIndex(t => t.id === id);
-  if (idx >= 0) { Object.assign(list[idx], updates); saveTransactions(list); }
-  return list;
+export async function updateTransaction(id, updates) {
+  const docRef = doc(db, COLLECTION_NAME, id);
+  await setDoc(docRef, updates, { merge: true });
 }
 
-export function deleteTransaction(id) {
-  let list = loadTransactions();
-  list = list.filter(t => t.id !== id);
-  saveTransactions(list);
-  return list;
+export async function deleteTransaction(id) {
+  const docRef = doc(db, COLLECTION_NAME, id);
+  await deleteDoc(docRef);
 }
 
 export function getMonthTransactions(year, month) {
-  return loadTransactions().filter(t => {
+  return cachedTransactions.filter(t => {
     const d = new Date(t.date);
     return d.getFullYear() === year && d.getMonth() === month;
   });
 }
 
+// 개발/테스트 시에만 사용 (모두 지우기는 구현 안함. 실운영 방지)
 export function clearAll() {
-  localStorage.removeItem(STORAGE_KEY);
+  console.warn("clearAll은 지원되지 않습니다.");
 }
 
 /* ===== Helpers ===== */
