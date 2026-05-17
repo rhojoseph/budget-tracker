@@ -13,14 +13,14 @@ export default function Sidebar({ currentView, onChangeView, onLogout, isAdmin }
       </div>
       <nav className="sidebar-nav">
         <button 
-          className={`view-btn ${currentView === 'dashboard' ? 'active' : ''}`}
+          className={`nav-item ${currentView === 'dashboard' ? 'active' : ''}`}
           onClick={() => onChangeView('dashboard')}
         >
           <LayoutDashboard size={18} /> 대시보드
         </button>
         {isAdmin && (
           <button 
-            className={`view-btn ${currentView === 'admin' ? 'active' : ''}`}
+            className={`nav-item ${currentView === 'admin' ? 'active' : ''}`}
             onClick={() => onChangeView('admin')}
           >
             <Users size={18} /> 관리자 패널
