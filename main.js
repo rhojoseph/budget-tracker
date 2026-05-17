@@ -1,7 +1,8 @@
 import {
   EXPENSE_CATEGORIES, INCOME_CATEGORIES,
   loadTransactions, subscribeTransactions, addTransaction, updateTransaction, deleteTransaction,
-  getMonthTransactions, clearAll, formatMoney, formatMoneyFull, getCategoryInfo
+  getMonthTransactions, clearAll, formatMoney, formatMoneyFull, getCategoryInfo,
+  initializeAdmin, login, logout, getCurrentUser, createUser, updateUserPassword, deleteUserAccount, getAllUsers
 } from './data.js';
 
 /* ===== State ===== */
@@ -20,10 +21,8 @@ function init() {
   currentMonth = now.getMonth();
   bindEvents();
   
-  subscribeTransactions(() => {
-    isDataLoaded = true;
-    render();
-  });
+  initializeAdmin().catch(console.error);
+
   
   // PWA 설치 로직
   window.addEventListener('beforeinstallprompt', (e) => {
@@ -68,14 +67,74 @@ function bindEvents() {
   });
 
   // View toggle
-  ['dashboard', 'list', 'calendar'].forEach(v => {
-    document.getElementById(`view-${v}`).addEventListener('click', () => {
-      currentView = v;
-      document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
-      document.getElementById(`view-${v}`).classList.add('active');
-      render();
-    });
+  ['dashboard', 'list', 'calendar', 'admin'].forEach(v => {
+    const el = document.getElementById(`view-${v}`);
+    if (el) {
+      el.addEventListener('click', () => {
+        currentView = v;
+        document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+        el.classList.add('active');
+        render();
+      });
+    }
   });
+
+  // Auth Events
+  document.getElementById('login-btn').addEventListener('click', async () => {
+    const id = document.getElementById('login-id').value.trim();
+    const pw = document.getElementById('login-pw').value.trim();
+    if (!id || !pw) return toast('아이디와 비밀번호를 입력해주세요.', 'error');
+    try {
+      const btn = document.getElementById('login-btn');
+      btn.disabled = true;
+      btn.textContent = '로그인 중...';
+      const user = await login(id, pw);
+      document.getElementById('login-overlay').style.display = 'none';
+      if (user.role === 'admin') {
+        document.getElementById('view-admin').style.display = '';
+      }
+      
+      subscribeTransactions(() => {
+        isDataLoaded = true;
+        render();
+      });
+      toast(`환영합니다, ${id}님!`, 'success');
+    } catch (e) {
+      toast(e.message, 'error');
+    } finally {
+      const btn = document.getElementById('login-btn');
+      btn.disabled = false;
+      btn.textContent = '로그인';
+    }
+  });
+
+  document.getElementById('logout-btn').addEventListener('click', () => {
+    logout();
+    document.getElementById('login-overlay').style.display = 'flex';
+    document.getElementById('view-admin').style.display = 'none';
+    currentView = 'dashboard';
+    document.getElementById('login-id').value = '';
+    document.getElementById('login-pw').value = '';
+  });
+
+  // Admin Events
+  const createUserBtn = document.getElementById('create-user-btn');
+  if (createUserBtn) {
+    createUserBtn.addEventListener('click', async () => {
+      const id = document.getElementById('new-user-id').value.trim();
+      const pw = document.getElementById('new-user-pw').value.trim();
+      if (!id || !pw) return toast('아이디와 비밀번호를 입력하세요.', 'error');
+      try {
+        await createUser(id, pw);
+        toast('사용자가 생성되었습니다.', 'success');
+        document.getElementById('new-user-id').value = '';
+        document.getElementById('new-user-pw').value = '';
+        renderAdmin();
+      } catch (e) {
+        toast(e.message, 'error');
+      }
+    });
+  }
 
   // Add transaction
   document.getElementById('add-transaction-btn').addEventListener('click', () => openModal());
@@ -108,6 +167,8 @@ function bindEvents() {
 
 /* ===== Render ===== */
 function render() {
+  if (!getCurrentUser()) return; // Not logged in
+  
   const txs = getMonthTransactions(currentYear, currentMonth);
   renderMonthLabel();
   renderSidebarStats(txs);
@@ -117,13 +178,15 @@ function render() {
   document.getElementById('dashboard-view').style.display = currentView === 'dashboard' ? '' : 'none';
   document.getElementById('list-view').style.display = currentView === 'list' ? '' : 'none';
   document.getElementById('calendar-view').style.display = currentView === 'calendar' ? '' : 'none';
+  document.getElementById('admin-view').style.display = currentView === 'admin' ? '' : 'none';
 
-  const titles = { dashboard: '대시보드', list: '거래 내역', calendar: '캘린더' };
+  const titles = { dashboard: '대시보드', list: '거래 내역', calendar: '캘린더', admin: '관리자 대시보드' };
   document.getElementById('page-title').textContent = titles[currentView];
 
   if (currentView === 'dashboard') renderDashboard(txs, filtered);
   else if (currentView === 'list') renderList(filtered);
-  else renderCalendar(txs);
+  else if (currentView === 'calendar') renderCalendar(txs);
+  else if (currentView === 'admin') renderAdmin();
 }
 
 function renderMonthLabel() {
@@ -402,6 +465,54 @@ function renderCalendar(txs) {
     });
   });
 }
+
+/* ===== Admin View ===== */
+async function renderAdmin() {
+  const listEl = document.getElementById('user-list');
+  listEl.innerHTML = '<div class="empty-state">로딩 중...</div>';
+  try {
+    const users = await getAllUsers();
+    listEl.innerHTML = users.map(u => `
+      <div class="tx-item" style="cursor:default;">
+        <div class="tx-icon expense-icon">👤</div>
+        <div class="tx-info">
+          <div class="tx-memo">${u.id}</div>
+          <div class="tx-category">권한: ${u.role === 'admin' ? '관리자' : '일반 사용자'}</div>
+        </div>
+        <div class="tx-right" style="gap:5px; align-items:center;">
+          <button class="tx-submit" style="padding: 6px 12px; margin:0;" onclick="window.resetPw('${u.id}')">비밀번호 변경</button>
+          ${u.id !== 'admin' ? `<button class="reset-btn" style="padding: 6px 12px; margin:0; background:rgba(225,112,85,0.15); color:var(--expense); border:none; border-radius:8px;" onclick="window.delUser('${u.id}')">삭제</button>` : ''}
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    listEl.innerHTML = `<div class="empty-state">오류: ${e.message}</div>`;
+  }
+}
+
+window.resetPw = async (id) => {
+  const newPw = prompt(`${id}의 새 비밀번호를 입력하세요:`);
+  if (newPw) {
+    try {
+      await updateUserPassword(id, newPw);
+      toast('비밀번호가 변경되었습니다.', 'success');
+    } catch(e) {
+      toast(e.message, 'error');
+    }
+  }
+};
+
+window.delUser = async (id) => {
+  if (confirm(`${id} 사용자를 정말 삭제하시겠습니까?`)) {
+    try {
+      await deleteUserAccount(id);
+      toast('삭제되었습니다.', 'info');
+      renderAdmin();
+    } catch(e) {
+      toast(e.message, 'error');
+    }
+  }
+};
 
 /* ===== TX Item Click ===== */
 function bindTxClicks() {

@@ -1,4 +1,4 @@
-import { db, collection, doc, setDoc, deleteDoc, onSnapshot } from './src/firebase.js';
+import { db, collection, doc, setDoc, deleteDoc, onSnapshot, getDoc, getDocs, query, where } from './src/firebase.js';
 
 /* ===== Categories ===== */
 export const EXPENSE_CATEGORIES = [
@@ -24,16 +24,79 @@ export const INCOME_CATEGORIES = [
 
 /* ===== Data Store (Firebase) ===== */
 const COLLECTION_NAME = 'budget_transactions';
+const USERS_COLLECTION = 'budget_users';
 
-// 메모리에 로드된 트랜잭션 (동기적 접근을 위해)
+let currentUser = null;
 let cachedTransactions = [];
 let unsubscribeSnapshot = null;
 
-// 실시간 구독
+/* ===== Auth & User Management ===== */
+export async function initializeAdmin() {
+  const adminRef = doc(db, USERS_COLLECTION, 'admin');
+  const snap = await getDoc(adminRef);
+  if (!snap.exists()) {
+    await setDoc(adminRef, { password: 'admin1234', role: 'admin' });
+  }
+}
+
+export async function login(userId, password) {
+  const userRef = doc(db, USERS_COLLECTION, userId);
+  const snap = await getDoc(userRef);
+  if (snap.exists() && snap.data().password === password) {
+    currentUser = { id: userId, ...snap.data() };
+    return currentUser;
+  }
+  throw new Error("아이디 또는 비밀번호가 올바르지 않습니다.");
+}
+
+export function logout() {
+  currentUser = null;
+  if (unsubscribeSnapshot) {
+    unsubscribeSnapshot();
+    unsubscribeSnapshot = null;
+  }
+  cachedTransactions = [];
+}
+
+export function getCurrentUser() {
+  return currentUser;
+}
+
+export async function createUser(id, password, role = 'user') {
+  if (!currentUser || currentUser.role !== 'admin') throw new Error("권한이 없습니다.");
+  const ref = doc(db, USERS_COLLECTION, id);
+  const snap = await getDoc(ref);
+  if (snap.exists()) throw new Error("이미 존재하는 아이디입니다.");
+  await setDoc(ref, { password, role });
+}
+
+export async function updateUserPassword(id, newPassword) {
+  if (!currentUser || currentUser.role !== 'admin') throw new Error("권한이 없습니다.");
+  const ref = doc(db, USERS_COLLECTION, id);
+  await setDoc(ref, { password: newPassword }, { merge: true });
+}
+
+export async function deleteUserAccount(id) {
+  if (!currentUser || currentUser.role !== 'admin') throw new Error("권한이 없습니다.");
+  if (id === 'admin') throw new Error("최고 관리자는 삭제할 수 없습니다.");
+  const ref = doc(db, USERS_COLLECTION, id);
+  await deleteDoc(ref);
+}
+
+export async function getAllUsers() {
+  if (!currentUser || currentUser.role !== 'admin') throw new Error("권한이 없습니다.");
+  const snap = await getDocs(collection(db, USERS_COLLECTION));
+  return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+}
+
+/* ===== Transactions ===== */
 export function subscribeTransactions(onUpdate) {
+  if (!currentUser) return;
   if (unsubscribeSnapshot) unsubscribeSnapshot();
   
-  unsubscribeSnapshot = onSnapshot(collection(db, COLLECTION_NAME), (snapshot) => {
+  const q = query(collection(db, COLLECTION_NAME), where('userId', '==', currentUser.id));
+  
+  unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
     cachedTransactions = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
@@ -49,8 +112,10 @@ export function loadTransactions() {
 }
 
 export async function addTransaction(tx) {
+  if (!currentUser) throw new Error("로그인이 필요합니다.");
   const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   tx.id = id;
+  tx.userId = currentUser.id;
   const docRef = doc(db, COLLECTION_NAME, id);
   await setDoc(docRef, tx);
   return tx;

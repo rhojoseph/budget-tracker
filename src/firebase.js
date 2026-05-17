@@ -1,6 +1,6 @@
 // Firebase 설정 및 연동
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, onSnapshot } from "firebase/firestore";
+import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, onSnapshot, query, where } from "firebase/firestore";
 
 // 사용자에게 받은 Firebase 구성 (보험 프로그램과 동일)
 const firebaseConfig = {
@@ -17,4 +17,4 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-export { db, collection, doc, setDoc, getDoc, getDocs, deleteDoc, onSnapshot };
+export { db, collection, doc, setDoc, getDoc, getDocs, deleteDoc, onSnapshot, query, where };
