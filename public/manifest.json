@@ -1,0 +1,17 @@
+{
+  "name": "내 가계부 | My Budget",
+  "short_name": "가계부",
+  "description": "수입과 지출을 한눈에 관리하는 프리미엄 가계부 대시보드",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0f",
+  "theme_color": "#0a0a0f",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

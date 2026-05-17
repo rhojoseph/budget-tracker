@@ -8,6 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+KR:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#0a0a0f" />
+  <link rel="apple-touch-icon" href="/icon.svg">
   <link rel="stylesheet" href="/index.css" />
 </head>
 <body>
@@ -70,6 +73,14 @@
       </div>
 
       <div class="sidebar-footer">
+        <button id="install-btn" class="export-btn" title="앱 설치하기" style="display:none; margin-right:6px; background:linear-gradient(135deg, var(--accent), #a855f7); color:#fff; border:none; box-shadow:0 0 12px var(--accent-glow);">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          설치
+        </button>
         <button id="export-btn" class="export-btn" title="데이터 내보내기">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
@@ -187,6 +198,15 @@
   <!-- Toast -->
   <div id="toast-container" class="toast-container"></div>
 
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(err => {
+          console.log('ServiceWorker registration failed: ', err);
+        });
+      });
+    }
+  </script>
   <script type="module" src="/main.js"></script>
 </body>
 </html>

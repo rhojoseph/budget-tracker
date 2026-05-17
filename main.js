@@ -12,6 +12,8 @@ let editingTxId = null;
 
 let isDataLoaded = false;
 
+let deferredPrompt;
+
 function init() {
   const now = new Date();
   currentYear = now.getFullYear();
@@ -21,6 +23,28 @@ function init() {
   subscribeTransactions(() => {
     isDataLoaded = true;
     render();
+  });
+  
+  // PWA 설치 로직
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    const installBtn = document.getElementById('install-btn');
+    if (installBtn) {
+      installBtn.style.display = 'flex';
+      installBtn.addEventListener('click', async () => {
+        installBtn.style.display = 'none';
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        console.log(`User response to the install prompt: ${outcome}`);
+        deferredPrompt = null;
+      });
+    }
+  });
+  
+  window.addEventListener('appinstalled', () => {
+    deferredPrompt = null;
+    console.log('PWA was installed');
   });
 }
 
