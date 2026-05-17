@@ -114,17 +114,27 @@ export default function Dashboard({ userId }) {
                   exit={{ opacity: 0, scale: 0.9 }}
                   transition={{ delay: i * 0.05 }}
                   key={t.id} 
-                  className="tx-item" 
-                  onClick={() => { if(confirm('삭제할까요?')) deleteTransaction(t.id) }}
+                  className="tx-item"
+                  style={{ cursor: 'default' }}
                 >
                   <div className={`tx-icon ${t.type}-icon`}>{info.emoji}</div>
                   <div className="tx-info">
                     <div className="tx-memo">{t.memo || info.name}</div>
                     <div className="tx-category">{info.name}</div>
                   </div>
-                  <div className="tx-right">
-                    <div className={`tx-amount ${t.type}`}>{t.type==='income'?'+':'-'}{formatMoneyFull(t.amount)}</div>
-                    <div className="tx-date">{t.date}</div>
+                  <div className="tx-right" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ textAlign: 'right' }}>
+                      <div className={`tx-amount ${t.type}`}>{t.type==='income'?'+':'-'}{formatMoneyFull(t.amount)}</div>
+                      <div className="tx-date">{t.date}</div>
+                    </div>
+                    <button 
+                      className="reset-btn" 
+                      style={{ padding: '6px', background: 'rgba(225,112,85,0.1)', color: 'var(--expense)', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
+                      title="내역 삭제"
+                      onClick={(e) => { e.stopPropagation(); if(confirm('이 내역을 삭제하시겠습니까?')) deleteTransaction(t.id); }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+                    </button>
                   </div>
                 </motion.div>
               )
