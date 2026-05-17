@@ -101,7 +101,7 @@ export default function Login({ onLogin }) {
           <input 
             type="text" 
             className="tx-input" 
-            placeholder="아이디 (영문/숫자)" 
+            placeholder="아이디 (한글, 영문, 숫자 모두 가능)" 
             value={id}
             onChange={(e) => setId(e.target.value.trim())}
             required

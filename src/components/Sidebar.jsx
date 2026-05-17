@@ -1,8 +1,8 @@
 import React from 'react';
-import { LayoutDashboard, Users, LogOut, Wallet } from 'lucide-react';
+import { LayoutDashboard, Users, LogOut, Wallet, Download } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-export default function Sidebar({ currentView, onChangeView, onLogout, isAdmin }) {
+export default function Sidebar({ currentView, onChangeView, onLogout, isAdmin, installPrompt, onInstall }) {
   return (
     <aside className="sidebar" style={{ width: '280px', minWidth: '280px', background: 'var(--bg-sidebar)', borderRight: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', height: '100vh', zIndex: 100 }}>
       <div className="sidebar-header" style={{ padding: '28px 24px', borderBottom: '1px solid var(--border-color)' }}>
@@ -34,6 +34,17 @@ export default function Sidebar({ currentView, onChangeView, onLogout, isAdmin }
       </nav>
 
       <div style={{ padding: '24px 20px', marginTop: 'auto', borderTop: '1px solid var(--border-color)' }}>
+        {installPrompt && (
+          <motion.button 
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={onInstall}
+            style={{ width: '100%', padding: '16px', borderRadius: '16px', background: 'linear-gradient(135deg, var(--income), #10b981)', color: '#fff', fontWeight: '700', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'center', border: 'none', cursor: 'pointer', marginBottom: '12px', boxShadow: '0 8px 20px rgba(16,185,129,0.25)' }}
+          >
+            <Download size={18} /> 바탕화면에 앱 설치
+          </motion.button>
+        )}
+
         <motion.button 
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
