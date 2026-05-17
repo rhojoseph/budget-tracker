@@ -99,6 +99,28 @@ export function useTransactions(userId) {
   return { transactions, loading, addTransaction, updateTransaction, deleteTransaction };
 }
 
+export function useBudget(userId) {
+  const [budget, setBudget] = useState(1000000);
+
+  useEffect(() => {
+    if (!userId) return;
+    const ref = doc(db, 'budget_settings', userId);
+    const unsubscribe = onSnapshot(ref, (snap) => {
+      if (snap.exists()) {
+        setBudget(snap.data().amount || 1000000);
+      }
+    });
+    return () => unsubscribe();
+  }, [userId]);
+
+  const updateBudget = async (newAmount) => {
+    if (!userId) return;
+    await setDoc(doc(db, 'budget_settings', userId), { amount: newAmount }, { merge: true });
+  };
+
+  return { budget, updateBudget };
+}
+
 export async function getAllUsers() {
   const snap = await getDocs(collection(db, USERS_COLLECTION));
   return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
