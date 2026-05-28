@@ -2,12 +2,16 @@ import React, { useState } from 'react';
 import { useTransactions, useBudget, formatMoneyFull, getCategoryInfo, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../hooks/useData';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, Target, Zap, TrendingUp, DollarSign, Calendar, Edit3, Trash2, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { AlertCircle, Target, Zap, TrendingUp, DollarSign, Calendar, Edit3, Trash2, Plus, ChevronLeft, ChevronRight, FileSpreadsheet, Camera } from 'lucide-react';
+import ExcelImport from './ExcelImport';
+import OCRCapture from './OCRCapture';
 
 export default function Dashboard({ userId }) {
   const { transactions, loading, addTransaction, deleteTransaction } = useTransactions(userId);
   const { budget, updateBudget } = useBudget(userId);
   const [modalOpen, setModalOpen] = useState(false);
+  const [excelOpen, setExcelOpen] = useState(false);
+  const [ocrOpen, setOcrOpen] = useState(false);
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
 
@@ -115,15 +119,31 @@ export default function Dashboard({ userId }) {
             </span>
           </div>
         </div>
-        <motion.button 
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
-          onClick={() => setModalOpen(true)}
-          style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 22px', background: 'linear-gradient(135deg, var(--accent), #818cf8)', color: '#fff', borderRadius: '16px', fontWeight: '700', fontSize: '15px', border: 'none', boxShadow: '0 8px 20px var(--accent-glow)', cursor: 'pointer' }}
-        >
-          <Plus size={18} />
-          내역 추가
-        </motion.button>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <motion.button
+            whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+            onClick={() => setOcrOpen(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 16px', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', borderRadius: '14px', fontWeight: '600', fontSize: '13px', border: '1px solid var(--border-color)', cursor: 'pointer' }}
+          >
+            <Camera size={15} /> 문자 캡처
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+            onClick={() => setExcelOpen(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 16px', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', borderRadius: '14px', fontWeight: '600', fontSize: '13px', border: '1px solid var(--border-color)', cursor: 'pointer' }}
+          >
+            <FileSpreadsheet size={15} /> 엑셀 가져오기
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={() => setModalOpen(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 22px', background: 'linear-gradient(135deg, var(--accent), #818cf8)', color: '#fff', borderRadius: '16px', fontWeight: '700', fontSize: '15px', border: 'none', boxShadow: '0 8px 20px var(--accent-glow)', cursor: 'pointer' }}
+          >
+            <Plus size={18} />
+            내역 추가
+          </motion.button>
+        </div>
       </header>
 
       {/* Target Budget Alert / Progress Card */}
@@ -322,6 +342,20 @@ export default function Dashboard({ userId }) {
       <AnimatePresence>
         {modalOpen && <TxModal onClose={() => setModalOpen(false)} onSave={addTransaction} />}
       </AnimatePresence>
+
+      {excelOpen && (
+        <ExcelImport
+          onClose={() => setExcelOpen(false)}
+          onSave={addTransaction}
+        />
+      )}
+
+      {ocrOpen && (
+        <OCRCapture
+          onClose={() => setOcrOpen(false)}
+          onSave={addTransaction}
+        />
+      )}
     </div>
   );
 }
