@@ -143,3 +143,41 @@ export async function deleteUserAccount(id) {
   const ref = doc(db, USERS_COLLECTION, id);
   await deleteDoc(ref);
 }
+
+export function useCategoryBudgets(userId) {
+  const [catBudgets, setCatBudgets] = useState({});
+
+  useEffect(() => {
+    if (!userId) return;
+    const ref = doc(db, 'category_budgets', userId);
+    const unsub = onSnapshot(ref, (snap) => {
+      if (snap.exists()) setCatBudgets(snap.data());
+    });
+    return () => unsub();
+  }, [userId]);
+
+  const updateCatBudgets = async (budgets) => {
+    await setDoc(doc(db, 'category_budgets', userId), budgets);
+  };
+
+  return { catBudgets, updateCatBudgets };
+}
+
+export function useFixedExpenses(userId) {
+  const [fixedExpenses, setFixedExpenses] = useState([]);
+
+  useEffect(() => {
+    if (!userId) return;
+    const ref = doc(db, 'fixed_expenses', userId);
+    const unsub = onSnapshot(ref, (snap) => {
+      if (snap.exists()) setFixedExpenses(snap.data().items || []);
+    });
+    return () => unsub();
+  }, [userId]);
+
+  const saveFixedExpenses = async (items) => {
+    await setDoc(doc(db, 'fixed_expenses', userId), { items });
+  };
+
+  return { fixedExpenses, saveFixedExpenses };
+}

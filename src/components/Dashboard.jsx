@@ -1,19 +1,30 @@
 import React, { useState } from 'react';
-import { useTransactions, useBudget, formatMoneyFull, getCategoryInfo, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../hooks/useData';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
+import { useTransactions, useBudget, useCategoryBudgets, useFixedExpenses, formatMoneyFull, getCategoryInfo, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../hooks/useData';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, Target, Zap, TrendingUp, DollarSign, Calendar, Edit3, Trash2, Plus, ChevronLeft, ChevronRight, FileSpreadsheet, Camera } from 'lucide-react';
+import { AlertCircle, Target, Zap, TrendingUp, DollarSign, Calendar, Edit3, Trash2, Plus, ChevronLeft, ChevronRight, FileSpreadsheet, Camera, RefreshCw, Settings } from 'lucide-react';
 import ExcelImport from './ExcelImport';
 import OCRCapture from './OCRCapture';
+import BudgetSettings from './BudgetSettings';
+import FixedExpenses from './FixedExpenses';
+
+const GEMINI_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
 export default function Dashboard({ userId }) {
   const { transactions, loading, addTransaction, deleteTransaction } = useTransactions(userId);
   const { budget, updateBudget } = useBudget(userId);
+  const { catBudgets, updateCatBudgets } = useCategoryBudgets(userId);
+  const { fixedExpenses, saveFixedExpenses } = useFixedExpenses(userId);
+
   const [modalOpen, setModalOpen] = useState(false);
   const [excelOpen, setExcelOpen] = useState(false);
   const [ocrOpen, setOcrOpen] = useState(false);
+  const [budgetOpen, setBudgetOpen] = useState(false);
+  const [fixedOpen, setFixedOpen] = useState(false);
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+  const [aiInsights, setAiInsights] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
 
   if (loading) return <div style={{ padding: '40px', color: 'var(--text-secondary)' }}>데이터를 불러오는 중...</div>;
 
@@ -60,11 +71,34 @@ export default function Dashboard({ userId }) {
 
   const highestCat = pieData[0];
 
-  const handleEditBudget = () => {
-    const res = prompt('이번 달 목표 예산(원)을 설정하세요:', budget);
-    const parsed = parseInt(res?.replace(/[^\d]/g, ''), 10);
-    if (!isNaN(parsed) && parsed > 0) {
-      updateBudget(parsed);
+  const fixedTotal = fixedExpenses.filter(f => f.active).reduce((s, f) => s + f.amount, 0);
+
+  const fetchAiInsights = async () => {
+    if (!GEMINI_KEY || aiLoading) return;
+    setAiLoading(true);
+    try {
+      const catSummary = pieData.map(c => `${c.info?.name || c.name}:${c.value.toLocaleString()}원`).join(', ');
+      const prompt = `한국어로 답하세요. 아래는 사용자의 이번 달 가계부 데이터입니다.
+수입: ${income.toLocaleString()}원 / 지출: ${expense.toLocaleString()}원 / 잔액: ${balance.toLocaleString()}원
+저축률: ${savingsRate}% / 목표예산 대비: ${budgetPct}% / 고정비: ${fixedTotal.toLocaleString()}원
+카테고리별 지출: ${catSummary || '없음'}
+
+3개의 짧고 구체적인 재무 인사이트를 JSON 배열로만 반환해주세요 (다른 텍스트 없이):
+[{"type":"warning|success|tip","title":"짧은 제목","message":"1-2문장 조언"}]`;
+
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+      });
+      const data = await res.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      const match = text.match(/\[[\s\S]*\]/);
+      if (match) setAiInsights(JSON.parse(match[0]));
+    } catch (e) {
+      console.error('Gemini error:', e);
+    } finally {
+      setAiLoading(false);
     }
   };
 
@@ -120,28 +154,17 @@ export default function Dashboard({ userId }) {
           </div>
         </div>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          <motion.button
-            whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-            onClick={() => setOcrOpen(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 16px', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', borderRadius: '14px', fontWeight: '600', fontSize: '13px', border: '1px solid var(--border-color)', cursor: 'pointer' }}
-          >
-            <Camera size={15} /> 문자 캡처
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-            onClick={() => setExcelOpen(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 16px', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', borderRadius: '14px', fontWeight: '600', fontSize: '13px', border: '1px solid var(--border-color)', cursor: 'pointer' }}
-          >
-            <FileSpreadsheet size={15} /> 엑셀 가져오기
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={() => setModalOpen(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 22px', background: 'linear-gradient(135deg, var(--accent), #818cf8)', color: '#fff', borderRadius: '16px', fontWeight: '700', fontSize: '15px', border: 'none', boxShadow: '0 8px 20px var(--accent-glow)', cursor: 'pointer' }}
-          >
-            <Plus size={18} />
-            내역 추가
+          <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => setBudgetOpen(true)}
+            style={btnSecondary}><Settings size={14} /> 예산 설정</motion.button>
+          <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => setFixedOpen(true)}
+            style={btnSecondary}><RefreshCw size={14} /> 고정비</motion.button>
+          <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => setOcrOpen(true)}
+            style={btnSecondary}><Camera size={14} /> 문자 캡처</motion.button>
+          <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => setExcelOpen(true)}
+            style={btnSecondary}><FileSpreadsheet size={14} /> 엑셀 가져오기</motion.button>
+          <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} onClick={() => setModalOpen(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 22px', background: 'linear-gradient(135deg, var(--accent), #818cf8)', color: '#fff', borderRadius: '16px', fontWeight: '700', fontSize: '15px', border: 'none', boxShadow: '0 8px 20px var(--accent-glow)', cursor: 'pointer' }}>
+            <Plus size={18} /> 내역 추가
           </motion.button>
         </div>
       </header>
@@ -210,37 +233,78 @@ export default function Dashboard({ userId }) {
         </motion.div>
       </div>
 
-      {/* Smart Advice Panel (Premium Feature) */}
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.98 }} 
-        animate={{ opacity: 1, scale: 1 }} 
-        style={{ background: 'linear-gradient(135deg, #fff, #f8fafc)', border: '1px solid var(--accent)', borderRadius: '22px', padding: '26px 30px', marginBottom: '28px', boxShadow: '0 12px 35px rgba(99,102,241,0.1)' }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--accent)', fontWeight: '800', fontSize: '16px', marginBottom: '14px' }}>
-          <Zap size={20} /> 스마트 재무 조언 (AI Insights)
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '14px', color: 'var(--text-primary)', lineHeight: '1.6' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ padding: '4px 10px', borderRadius: '8px', background: 'var(--bg-tertiary)', fontWeight: '700', color: 'var(--accent)' }}>저축 건강</span>
-            <span>이번 달 총 수입 중 <strong>{savingsRate}%</strong>를 저축할 수 있습니다. 권장 저축률(40%)을 향해 조금 더 관리해보세요!</span>
+      {/* Gemini AI Insights */}
+      <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}
+        style={{ background: 'linear-gradient(135deg, #fafbff, #f0f4ff)', border: '1px solid var(--accent)', borderRadius: '22px', padding: '24px 28px', marginBottom: '28px', boxShadow: '0 8px 25px rgba(99,102,241,0.08)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--accent)', fontWeight: 800, fontSize: 16 }}>
+            <Zap size={20} /> Gemini AI 재무 인사이트
           </div>
-          {highestCat && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ padding: '4px 10px', borderRadius: '8px', background: 'rgba(225,29,72,0.1)', fontWeight: '700', color: 'var(--expense)' }}>지출 분석</span>
-              <span>가장 지출이 많은 분야는 <strong>{highestCat.info.emoji} {highestCat.name} ({Math.round((highestCat.value/expense)*100)}%)</strong> 입니다. {highestCat.name} 예산을 10%만 절감해도 {formatMoneyFull(Math.round(highestCat.value * 0.1))}원을 추가 저축할 수 있습니다!</span>
-            </div>
-          )}
-          {budgetPct > 85 ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--danger)' }}>
-              <AlertCircle size={18} /> <strong>경고:</strong> 예산 소진 속도가 매우 빠릅니다. 월말까지 지출을 통제하시길 강력 권장합니다.
-            </div>
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--success)' }}>
-              <TrendingUp size={18} /> <strong>양호:</strong> 훌륭한 예산 통제력을 보여주고 계십니다! 안정적인 재무 흐름 유지 중입니다.
-            </div>
-          )}
+          <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={fetchAiInsights}
+            disabled={aiLoading || !GEMINI_KEY}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 10, background: 'var(--accent)', color: 'white', fontWeight: 700, fontSize: 13, border: 'none', cursor: GEMINI_KEY ? 'pointer' : 'not-allowed', opacity: GEMINI_KEY ? 1 : 0.4 }}>
+            <RefreshCw size={13} style={{ animation: aiLoading ? 'spin 1s linear infinite' : 'none' }} />
+            {aiLoading ? '분석 중...' : '분석하기'}
+          </motion.button>
         </div>
+        {!GEMINI_KEY && <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>.env 파일에 VITE_GEMINI_API_KEY를 설정하면 AI 분석을 사용할 수 있어요.</p>}
+        {aiInsights ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {aiInsights.map((ins, i) => {
+              const colors = { warning: { bg: 'rgba(245,158,11,0.1)', txt: '#d97706', label: '⚠️ 주의' }, success: { bg: 'rgba(5,150,105,0.1)', txt: 'var(--income)', label: '✅ 양호' }, tip: { bg: 'rgba(99,102,241,0.08)', txt: 'var(--accent)', label: '💡 팁' } };
+              const c = colors[ins.type] || colors.tip;
+              return (
+                <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: c.bg, borderRadius: 12, padding: '12px 14px' }}>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: c.txt, whiteSpace: 'nowrap', paddingTop: 1 }}>{c.label}</span>
+                  <div>
+                    <p style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)', marginBottom: 2 }}>{ins.title}</p>
+                    <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{ins.message}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : !aiLoading && GEMINI_KEY ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 14, color: 'var(--text-secondary)' }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <TrendingUp size={16} color="var(--income)" />
+              <span>저축률 <strong style={{ color: 'var(--income)' }}>{savingsRate}%</strong> {savingsRate >= 40 ? '— 권장 저축률 달성!' : `— 권장 40%까지 ${40 - savingsRate}%p 남았어요`}</span>
+            </div>
+            {budgetPct > 85 && <div style={{ display: 'flex', gap: 8, alignItems: 'center', color: 'var(--danger)' }}><AlertCircle size={16} /><span>예산의 {budgetPct}% 소진 — 지출 주의 필요</span></div>}
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>위 "분석하기" 버튼을 누르면 Gemini가 맞춤 인사이트를 드려요.</p>
+          </div>
+        ) : null}
       </motion.div>
+
+      {/* 고정비 현황 */}
+      {fixedExpenses.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+          style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '22px', padding: '24px 28px', marginBottom: '28px', boxShadow: 'var(--shadow-md)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <RefreshCw size={17} color="var(--accent)" /> 월 고정비 현황
+            </h3>
+            <div style={{ textAlign: 'right' }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>예정 합계</span>
+              <p style={{ fontWeight: 800, fontSize: 18, color: 'var(--expense)' }}>{formatMoneyFull(fixedTotal)}</p>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
+            {fixedExpenses.filter(f => f.active).map(f => {
+              const cat = EXPENSE_CATEGORIES.find(c => c.id === f.category);
+              return (
+                <div key={f.id} style={{ padding: '12px 14px', borderRadius: 12, background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: 20, marginBottom: 4 }}>{cat?.emoji || '📦'}</div>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 2 }}>{f.name}</p>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>매월 {f.dayOfMonth}일</p>
+                  <p style={{ fontSize: 15, fontWeight: 800, color: 'var(--expense)' }}>{formatMoneyFull(f.amount)}</p>
+                </div>
+              );
+            })}
+          </div>
+          <button onClick={() => setFixedOpen(true)} style={{ marginTop: 12, fontSize: 12, color: 'var(--accent)', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer' }}>+ 고정비 관리</button>
+        </motion.div>
+      )}
 
       {/* Charts Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '24px', marginBottom: '28px' }}>
@@ -265,27 +329,40 @@ export default function Dashboard({ userId }) {
           <h3 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <DollarSign size={18} color="var(--expense)" /> 카테고리 지출 랭킹
           </h3>
-          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '14px' }}>
             {pieData.length === 0 ? <div className="empty-state">지출 내역이 없습니다</div> : (
               pieData.map(c => {
-                const pct = Math.round((c.value / expense) * 100);
+                const catBudget = catBudgets[c.name];
+                const budgetPctCat = catBudget ? Math.min(Math.round((c.value / catBudget) * 100), 100) : null;
+                const isOver = catBudget && c.value > catBudget;
+                const barColor = isOver ? 'var(--danger)' : (budgetPctCat > 80 ? 'var(--warning)' : c.color);
                 return (
-                  <div key={c.name} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '14px', fontWeight: '600' }}>
-                      <span style={{ color: 'var(--text-primary)' }}>{c.info.emoji} {c.name}</span>
-                      <span style={{ color: 'var(--text-secondary)', fontWeight: '700' }}>{formatMoneyFull(c.value)} ({pct}%)</span>
+                  <div key={c.name} style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', fontWeight: '600' }}>
+                      <span style={{ color: 'var(--text-primary)' }}>{c.info.emoji} {c.info.name}</span>
+                      <span style={{ color: isOver ? 'var(--danger)' : 'var(--text-secondary)', fontWeight: '700' }}>
+                        {formatMoneyFull(c.value)}
+                        {catBudget ? ` / ${formatMoneyFull(catBudget)}` : ''}
+                        {isOver && ' 🚨'}
+                      </span>
                     </div>
-                    <div style={{ width: '100%', height: '8px', background: 'var(--bg-tertiary)', borderRadius: '6px', overflow: 'hidden' }}>
-                      <motion.div 
+                    <div style={{ width: '100%', height: '7px', background: 'var(--bg-tertiary)', borderRadius: '6px', overflow: 'hidden' }}>
+                      <motion.div
                         initial={{ width: 0 }}
-                        animate={{ width: `${pct}%` }}
+                        animate={{ width: catBudget ? `${budgetPctCat}%` : `${Math.round((c.value / expense) * 100)}%` }}
                         transition={{ duration: 0.8 }}
-                        style={{ height: '100%', background: c.color, borderRadius: '6px' }}
+                        style={{ height: '100%', background: barColor, borderRadius: '6px' }}
                       />
                     </div>
+                    {isOver && <p style={{ fontSize: 11, color: 'var(--danger)', fontWeight: 600 }}>예산 초과 {formatMoneyFull(c.value - catBudget)}</p>}
                   </div>
-                )
+                );
               })
+            )}
+            {Object.keys(catBudgets).length === 0 && pieData.length > 0 && (
+              <button onClick={() => setBudgetOpen(true)} style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', marginTop: 4 }}>
+                + 카테고리별 예산 설정하기
+              </button>
             )}
           </div>
         </div>
@@ -311,8 +388,8 @@ export default function Dashboard({ userId }) {
                   >
                     <div className={`tx-icon ${t.type}-icon`} style={{ fontSize: '22px', width: '44px', height: '44px' }}>{info.emoji}</div>
                     <div className="tx-info">
-                      <div className="tx-memo" style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-primary)' }}>{t.memo || info.name}</div>
-                      <div className="tx-category" style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{info.name}</div>
+                      <div className="tx-memo" style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-primary)' }}>{t.description || t.memo || info.name}</div>
+                      <div className="tx-category" style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{info.name}{t.memo && t.description ? ` · ${t.memo}` : ''}</div>
                     </div>
                     <div className="tx-right" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                       <div style={{ textAlign: 'right' }}>
@@ -343,34 +420,42 @@ export default function Dashboard({ userId }) {
         {modalOpen && <TxModal onClose={() => setModalOpen(false)} onSave={addTransaction} />}
       </AnimatePresence>
 
-      {excelOpen && (
-        <ExcelImport
-          onClose={() => setExcelOpen(false)}
-          onSave={addTransaction}
+      {excelOpen && <ExcelImport onClose={() => setExcelOpen(false)} onSave={addTransaction} />}
+      {ocrOpen && <OCRCapture onClose={() => setOcrOpen(false)} onSave={addTransaction} />}
+      {budgetOpen && (
+        <BudgetSettings
+          totalBudget={budget}
+          catBudgets={catBudgets}
+          onSaveTotal={updateBudget}
+          onSaveCat={updateCatBudgets}
+          onClose={() => setBudgetOpen(false)}
         />
       )}
-
-      {ocrOpen && (
-        <OCRCapture
-          onClose={() => setOcrOpen(false)}
-          onSave={addTransaction}
+      {fixedOpen && (
+        <FixedExpenses
+          fixedExpenses={fixedExpenses}
+          onSave={saveFixedExpenses}
+          onClose={() => setFixedOpen(false)}
         />
       )}
     </div>
   );
 }
 
+const btnSecondary = { display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 14px', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', borderRadius: '12px', fontWeight: '600', fontSize: '13px', border: '1px solid var(--border-color)', cursor: 'pointer' };
+
 function TxModal({ onClose, onSave }) {
   const [type, setType] = useState('expense');
   const [amount, setAmount] = useState('');
+  const [description, setDescription] = useState('');
   const [memo, setMemo] = useState('');
   const [category, setCategory] = useState('food');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  
+
   const handleSave = async () => {
     if(!amount || !date) return alert('금액과 날짜를 입력하세요.');
     await onSave({
-      type, amount: parseInt(amount.replace(/[^\d]/g, ''), 10), memo, category, date
+      type, amount: parseInt(amount.replace(/[^\d]/g, ''), 10), description, memo, category, date
     });
     onClose();
   };
@@ -445,8 +530,12 @@ function TxModal({ onClose, onSave }) {
           </div>
 
           <div>
+            <label style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-secondary)', display: 'block', marginBottom: '8px' }}>사용처 / 내용</label>
+            <input type="text" placeholder="예: 스타벅스, 마트, 월급" value={description} onChange={e=>setDescription(e.target.value)} style={{ width: '100%', padding: '14px 18px', fontSize: '15px', color: 'var(--text-primary)', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '14px' }} />
+          </div>
+          <div>
             <label style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-secondary)', display: 'block', marginBottom: '8px' }}>메모 (선택)</label>
-            <input type="text" placeholder="어디에 사용하셨나요?" value={memo} onChange={e=>setMemo(e.target.value)} style={{ width: '100%', padding: '14px 18px', fontSize: '15px', color: 'var(--text-primary)', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '14px' }} />
+            <input type="text" placeholder="추가 메모" value={memo} onChange={e=>setMemo(e.target.value)} style={{ width: '100%', padding: '14px 18px', fontSize: '15px', color: 'var(--text-primary)', background: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '14px' }} />
           </div>
         </div>
 
