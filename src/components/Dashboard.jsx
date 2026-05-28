@@ -25,6 +25,7 @@ export default function Dashboard({ userId }) {
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [aiInsights, setAiInsights] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [txTab, setTxTab] = useState('all');
 
   if (loading) return <div style={{ padding: '40px', color: 'var(--text-secondary)' }}>데이터를 불러오는 중...</div>;
 
@@ -315,10 +316,15 @@ export default function Dashboard({ userId }) {
           <div style={{ height: '260px' }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={dailyData}>
-                <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} />
-                <Tooltip cursor={{fill: 'rgba(0,0,0,0.03)'}} contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', boxShadow: 'var(--shadow-lg)' }} />
-                <Bar dataKey="income" fill="var(--income)" radius={[6,6,0,0]} />
-                <Bar dataKey="expense" fill="var(--expense)" radius={[6,6,0,0]} />
+                <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={11} tickLine={false} axisLine={false} />
+                <Tooltip
+                  cursor={{ fill: 'rgba(0,0,0,0.03)' }}
+                  contentStyle={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', boxShadow: 'var(--shadow-lg)', fontSize: 13 }}
+                  formatter={(value, name) => [`${value.toLocaleString()}원`, name === 'income' ? '수입' : '지출']}
+                  labelFormatter={(label) => `${label}`}
+                />
+                <Bar dataKey="income" name="수입" fill="var(--income)" radius={[6,6,0,0]} />
+                <Bar dataKey="expense" name="지출" fill="var(--expense)" radius={[6,6,0,0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -370,11 +376,27 @@ export default function Dashboard({ userId }) {
 
       {/* Recent TX List */}
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '22px', padding: '26px', boxShadow: 'var(--shadow-md)' }}>
-        <h3 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '20px' }}>최근 거래 내역</h3>
-        <div className="tx-list" style={{ marginTop: '15px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+          <h3 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-primary)' }}>거래 내역</h3>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {[
+              { key: 'all',     label: `전체 ${sortedTransactions.length}` },
+              { key: 'expense', label: `지출 ${sortedTransactions.filter(t => t.type === 'expense').length}` },
+              { key: 'income',  label: `수입 ${sortedTransactions.filter(t => t.type === 'income').length}` },
+            ].map(tab => (
+              <button key={tab.key} onClick={() => setTxTab(tab.key)}
+                style={{ padding: '6px 14px', borderRadius: 20, fontSize: 13, fontWeight: 700, cursor: 'pointer', border: '1px solid var(--border-color)', background: txTab === tab.key ? 'var(--accent)' : 'var(--bg-tertiary)', color: txTab === tab.key ? 'white' : 'var(--text-secondary)', transition: '0.15s' }}>
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="tx-list">
           <AnimatePresence>
-            {sortedTransactions.length === 0 ? <div className="empty-state">기록된 내역이 없습니다.</div> : (
-              sortedTransactions.slice(0, 15).map((t, i) => {
+            {(() => {
+              const display = txTab === 'all' ? sortedTransactions : sortedTransactions.filter(t => t.type === txTab);
+              return display.length === 0 ? <div className="empty-state">{txTab === 'expense' ? '지출 내역이 없습니다.' : txTab === 'income' ? '수입 내역이 없습니다.' : '기록된 내역이 없습니다.'}</div> : (
+              display.slice(0, 20).map((t, i) => {
                 const info = getCategoryInfo(t.type, t.category);
                 return (
                   <motion.div 
@@ -411,7 +433,8 @@ export default function Dashboard({ userId }) {
                   </motion.div>
                 )
               })
-            )}
+              );
+            })()}
           </AnimatePresence>
         </div>
       </div>
