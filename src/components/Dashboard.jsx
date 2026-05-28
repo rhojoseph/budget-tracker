@@ -11,12 +11,13 @@ import FixedExpenses from './FixedExpenses';
 const GEMINI_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
 export default function Dashboard({ userId }) {
-  const { transactions, loading, addTransaction, deleteTransaction } = useTransactions(userId);
+  const { transactions, loading, addTransaction, updateTransaction, deleteTransaction } = useTransactions(userId);
   const { budget, updateBudget } = useBudget(userId);
   const { catBudgets, updateCatBudgets } = useCategoryBudgets(userId);
   const { fixedExpenses, saveFixedExpenses } = useFixedExpenses(userId);
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingTx, setEditingTx] = useState(null);
   const [excelOpen, setExcelOpen] = useState(false);
   const [ocrOpen, setOcrOpen] = useState(false);
   const [budgetOpen, setBudgetOpen] = useState(false);
@@ -420,7 +421,16 @@ export default function Dashboard({ userId }) {
                         </div>
                         <div className="tx-date" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t.date}</div>
                       </div>
-                      <motion.button 
+                      <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        style={{ padding: '8px', background: 'rgba(99,102,241,0.1)', color: 'var(--accent)', border: 'none', borderRadius: '12px', cursor: 'pointer' }}
+                        title="내역 수정"
+                        onClick={(e) => { e.stopPropagation(); setEditingTx(t); setModalOpen(true); }}
+                      >
+                        <Edit3 size={16} />
+                      </motion.button>
+                      <motion.button
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
                         style={{ padding: '8px', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', border: 'none', borderRadius: '12px', cursor: 'pointer' }}
@@ -440,7 +450,14 @@ export default function Dashboard({ userId }) {
       </div>
 
       <AnimatePresence>
-        {modalOpen && <TxModal onClose={() => setModalOpen(false)} onSave={addTransaction} />}
+        {modalOpen && (
+          <TxModal
+            onClose={() => { setModalOpen(false); setEditingTx(null); }}
+            onSave={addTransaction}
+            onUpdate={updateTransaction}
+            initialData={editingTx}
+          />
+        )}
       </AnimatePresence>
 
       {excelOpen && <ExcelImport onClose={() => setExcelOpen(false)} onSave={addTransaction} />}
@@ -467,35 +484,39 @@ export default function Dashboard({ userId }) {
 
 const btnSecondary = { display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 14px', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', borderRadius: '12px', fontWeight: '600', fontSize: '13px', border: '1px solid var(--border-color)', cursor: 'pointer' };
 
-function TxModal({ onClose, onSave }) {
-  const [type, setType] = useState('expense');
-  const [amount, setAmount] = useState('');
-  const [description, setDescription] = useState('');
-  const [memo, setMemo] = useState('');
-  const [category, setCategory] = useState('food');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+function TxModal({ onClose, onSave, onUpdate, initialData }) {
+  const isEdit = !!initialData;
+  const [type, setType] = useState(initialData?.type || 'expense');
+  const [amount, setAmount] = useState(initialData?.amount ? initialData.amount.toLocaleString() : '');
+  const [description, setDescription] = useState(initialData?.description || '');
+  const [memo, setMemo] = useState(initialData?.memo || '');
+  const [category, setCategory] = useState(initialData?.category || 'food');
+  const [date, setDate] = useState(initialData?.date || new Date().toISOString().split('T')[0]);
 
   const handleSave = async () => {
     if(!amount || !date) return alert('금액과 날짜를 입력하세요.');
-    await onSave({
-      type, amount: parseInt(amount.replace(/[^\d]/g, ''), 10), description, memo, category, date
-    });
+    const payload = { type, amount: parseInt(amount.replace(/[^\d]/g, ''), 10), description, memo, category, date };
+    if (isEdit) {
+      await onUpdate(initialData.id, payload);
+    } else {
+      await onSave(payload);
+    }
     onClose();
   };
 
   return (
     <div className="modal-backdrop" onClick={onClose} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <motion.div 
-        initial={{ scale: 0.9, opacity: 0 }} 
-        animate={{ scale: 1, opacity: 1 }} 
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-        className="modal-content" 
+        className="modal-content"
         onClick={e=>e.stopPropagation()}
         style={{ background: 'var(--bg-card)', borderRadius: '24px', padding: '32px', width: '90%', maxWidth: '440px', boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border-color)' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-          <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-primary)' }}>새 자산 내역 추가</h3>
+          <h3 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--text-primary)' }}>{isEdit ? '내역 수정' : '새 자산 내역 추가'}</h3>
           <button onClick={onClose} style={{ background: 'var(--bg-tertiary)', padding: '8px', borderRadius: '12px', color: 'var(--text-secondary)', fontWeight: '700', fontSize: '14px', cursor: 'pointer', border: 'none' }}>✕</button>
         </div>
         
@@ -564,7 +585,7 @@ function TxModal({ onClose, onSave }) {
 
         <div style={{ display: 'flex', gap: '12px', marginTop: '32px' }}>
           <button type="button" onClick={onClose} style={{ flex: 1, padding: '16px', borderRadius: '16px', fontWeight: '700', fontSize: '15px', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: 'none', cursor: 'pointer' }}>취소</button>
-          <button type="button" onClick={handleSave} style={{ flex: 1, padding: '16px', borderRadius: '16px', fontWeight: '700', fontSize: '15px', background: 'linear-gradient(135deg, var(--accent), #818cf8)', color: '#fff', border: 'none', boxShadow: '0 8px 20px var(--accent-glow)', cursor: 'pointer' }}>내역 추가</button>
+          <button type="button" onClick={handleSave} style={{ flex: 1, padding: '16px', borderRadius: '16px', fontWeight: '700', fontSize: '15px', background: 'linear-gradient(135deg, var(--accent), #818cf8)', color: '#fff', border: 'none', boxShadow: '0 8px 20px var(--accent-glow)', cursor: 'pointer' }}>{isEdit ? '수정 완료' : '내역 추가'}</button>
         </div>
       </motion.div>
     </div>
