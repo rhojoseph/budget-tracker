@@ -2,37 +2,50 @@ import React, { useState } from 'react';
 import { useTransactions, useBudget, formatMoneyFull, getCategoryInfo, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../hooks/useData';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, Target, Zap, TrendingUp, DollarSign, Calendar, Edit3, Trash2, Plus } from 'lucide-react';
+import { AlertCircle, Target, Zap, TrendingUp, DollarSign, Calendar, Edit3, Trash2, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function Dashboard({ userId }) {
   const { transactions, loading, addTransaction, deleteTransaction } = useTransactions(userId);
   const { budget, updateBudget } = useBudget(userId);
   const [modalOpen, setModalOpen] = useState(false);
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
 
   if (loading) return <div style={{ padding: '40px', color: 'var(--text-secondary)' }}>데이터를 불러오는 중...</div>;
 
-  const income = transactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-  const expense = transactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  // Filter transactions by year and month
+  const filteredTransactions = transactions.filter(t => {
+    if (!t.date) return false;
+    const tDate = new Date(t.date);
+    return tDate.getFullYear() === currentYear && tDate.getMonth() === currentMonth;
+  });
+
+  const sortedTransactions = [...filteredTransactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  const income = filteredTransactions.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+  const expense = filteredTransactions.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
   const balance = income - expense;
   const savingsRate = income > 0 ? Math.max(0, Math.round(((income - expense) / income) * 100)) : 0;
   const budgetPct = budget > 0 ? Math.min(100, Math.round((expense / budget) * 100)) : 0;
 
   // Chart data
-  const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   const dailyData = Array.from({ length: daysInMonth }, (_, i) => ({
     name: `${i + 1}일`,
     income: 0,
     expense: 0
   }));
   
-  transactions.forEach(t => {
+  filteredTransactions.forEach(t => {
     const day = new Date(t.date).getDate() - 1;
-    if (t.type === 'income') dailyData[day].income += t.amount;
-    else dailyData[day].expense += t.amount;
+    if (day >= 0 && day < daysInMonth) {
+      if (t.type === 'income') dailyData[day].income += t.amount;
+      else dailyData[day].expense += t.amount;
+    }
   });
 
   const catTotals = {};
-  transactions.filter(t => t.type === 'expense').forEach(t => {
+  filteredTransactions.filter(t => t.type === 'expense').forEach(t => {
     catTotals[t.category] = (catTotals[t.category] || 0) + t.amount;
   });
   const pieData = Object.entries(catTotals).map(([name, value]) => ({
@@ -53,14 +66,54 @@ export default function Dashboard({ userId }) {
 
   return (
     <div style={{ padding: '32px', paddingBottom: '100px', overflowY: 'auto', height: '100%', background: 'var(--bg-primary)' }}>
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
+      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h1 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--text-primary)', letterSpacing: '-0.03em' }}>
             자산 대시보드
           </h1>
-          <p style={{ fontSize: '14px', color: 'var(--text-muted)', marginTop: '4px' }}>
-            {new Date().getMonth() + 1}월의 자산 흐름과 스마트 분석
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '6px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-tertiary)', borderRadius: '12px', padding: '4px', border: '1px solid var(--border-color)' }}>
+              <motion.button 
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => {
+                  if (currentMonth === 0) {
+                    setCurrentMonth(11);
+                    setCurrentYear(y => y - 1);
+                  } else {
+                    setCurrentMonth(m => m - 1);
+                  }
+                }}
+                style={{ padding: '6px', borderRadius: '8px', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <ChevronLeft size={16} />
+              </motion.button>
+              
+              <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-primary)', padding: '0 12px', minWidth: '90px', textAlign: 'center' }}>
+                {currentYear}년 {currentMonth + 1}월
+              </span>
+
+              <motion.button 
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => {
+                  if (currentMonth === 11) {
+                    setCurrentMonth(0);
+                    setCurrentYear(y => y + 1);
+                  } else {
+                    setCurrentMonth(m => m + 1);
+                  }
+                }}
+                style={{ padding: '6px', borderRadius: '8px', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <ChevronRight size={16} />
+              </motion.button>
+            </div>
+            
+            <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+              자산 흐름과 스마트 분석
+            </span>
+          </div>
         </div>
         <motion.button 
           whileHover={{ scale: 1.03 }}
@@ -223,8 +276,8 @@ export default function Dashboard({ userId }) {
         <h3 style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '20px' }}>최근 거래 내역</h3>
         <div className="tx-list" style={{ marginTop: '15px' }}>
           <AnimatePresence>
-            {transactions.length === 0 ? <div className="empty-state">기록된 내역이 없습니다.</div> : (
-              transactions.slice(0, 15).map((t, i) => {
+            {sortedTransactions.length === 0 ? <div className="empty-state">기록된 내역이 없습니다.</div> : (
+              sortedTransactions.slice(0, 15).map((t, i) => {
                 const info = getCategoryInfo(t.type, t.category);
                 return (
                   <motion.div 
