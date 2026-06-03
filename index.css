@@ -464,10 +464,14 @@ input, select { font-family: inherit; }
   .main-content { padding-bottom: 80px !important; }
   .summary-cards { grid-template-columns: 1fr !important; gap: 12px !important; }
   .dashboard-grid { grid-template-columns: 1fr !important; }
-  div[style*="gridTemplateColumns: 'repeat(2, 1fr)'"], 
+  div[style*="gridTemplateColumns: 'repeat(2, 1fr)'"],
   div[style*="grid-template-columns: repeat(2, 1fr)"],
-  div[style*="gridTemplateColumns: 'repeat(3, 1fr)'"], 
+  div[style*="gridTemplateColumns: 'repeat(3, 1fr)'"],
   div[style*="grid-template-columns: repeat(3, 1fr)"] { grid-template-columns: 1fr !important; gap: 16px !important; }
   div[style*="padding: '32px'"], div[style*="padding: 32px"] { padding: 16px !important; padding-bottom: 120px !important; }
-  input, select, button { font-size: 16px !important; }
+  input, select { font-size: 16px !important; }
+
+  /* 거래 항목 수정/삭제 버튼 — 모바일에서 아이콘만 표시되도록 작게 */
+  .tx-item .tx-right { gap: 8px !important; }
+  .tx-item .tx-right button { padding: 6px !important; border-radius: 8px !important; }
 }
