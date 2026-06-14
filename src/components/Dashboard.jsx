@@ -190,7 +190,7 @@ export default function Dashboard({ userId }) {
             </div>
           </div>
           <button 
-            onClick={handleEditBudget}
+            onClick={() => setBudgetOpen(true)}
             style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '12px', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', fontSize: '13px', fontWeight: '600', border: '1px solid var(--border-color)', cursor: 'pointer', transition: 'all 0.2s' }}
           >
             <Edit3 size={14} /> 예산 설정
