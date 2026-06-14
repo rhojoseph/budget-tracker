@@ -1,4 +1,4 @@
-const CACHE_NAME = 'budget-tracker-v3';
+const CACHE_NAME = 'budget-tracker-v4';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -31,25 +31,20 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Firestore 등 API 요청은 네트워크를 우선시하거나 통과시킵니다.
-  if (event.request.url.includes('firestore.googleapis.com')) {
+  // Firestore 등 API 요청은 통과
+  if (event.request.url.includes('firestore.googleapis.com') || event.request.url.includes('googleapis.com')) {
     return;
   }
-  
+
+  // network-first: 항상 최신 파일을 먼저 시도하고, 오프라인일 때만 캐시 사용
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      // 캐시에 있으면 반환, 없으면 네트워크 요청
-      return cachedResponse || fetch(event.request).then((response) => {
-        return caches.open(CACHE_NAME).then((cache) => {
-          // http 요청만 캐싱
-          if (event.request.url.startsWith('http')) {
-            cache.put(event.request, response.clone());
-          }
-          return response;
-        });
-      });
-    }).catch(() => {
-      // 오프라인이면서 캐시에도 없는 경우 처리 (예: fallback 페이지)
-    })
+    fetch(event.request)
+      .then((response) => {
+        if (event.request.url.startsWith('http')) {
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, response.clone()));
+        }
+        return response;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
