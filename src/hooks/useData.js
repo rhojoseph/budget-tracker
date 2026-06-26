@@ -6,6 +6,7 @@ const USERS_COLLECTION = 'budget_users';
 
 export const EXPENSE_CATEGORIES = [
   { id: 'food', name: '식비', emoji: '🍚', color: '#fd79a8' },
+  { id: 'daily', name: '생필품', emoji: '🧴', color: '#00b894' },
   { id: 'transport', name: '교통', emoji: '🚌', color: '#74b9ff' },
   { id: 'shopping', name: '쇼핑', emoji: '🛍️', color: '#a29bfe' },
   { id: 'housing', name: '주거', emoji: '🏠', color: '#fdcb6e' },
